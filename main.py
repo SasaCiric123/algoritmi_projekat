@@ -1,5 +1,6 @@
 import pygame
 import sys
+import time
 
 from game_state import GameState
 from ai import AIPlayer
@@ -38,6 +39,8 @@ DONJA_RECT = pygame.Rect(BOARD_SIZE // 2 - 175, HEIGHT // 2 + 10, 350, 160)
 REPLAY_RECT = pygame.Rect(BOARD_SIZE // 2 - 110, HEIGHT // 2 + 50, 220, 40)
 
 FPS = 60
+AI_MIN_TURN_TIME = 1.0
+AI_MAX_TURN_TIME = 3.0
 
 
 def draw_board(win, game_state):
@@ -321,7 +324,7 @@ def mouse_to_rc(pos):
 def main():
     clock = pygame.time.Clock()
     game_state = GameState()
-    ai = AIPlayer(color="B", max_depth=4)
+    ai = AIPlayer(color="B", max_depth=20, time_limit=AI_MAX_TURN_TIME)
 
     selected = None
     sel_moves = []
@@ -338,9 +341,12 @@ def main():
             draw_info(WIN, game_state)
             pygame.display.update()
 
-            ai_move = ai.get_best_move(game_state)
+            ai_start = time.perf_counter()
+            ai_move = ai.get_best_move(game_state, time_limit=AI_MAX_TURN_TIME)
+            ai_elapsed = time.perf_counter() - ai_start
+            if ai_elapsed < AI_MIN_TURN_TIME:
+                pygame.time.wait(int((AI_MIN_TURN_TIME - ai_elapsed) * 1000))
             if ai_move:
-                pygame.time.wait(1000)
                 game_state.execute_player_move(ai_move)
                 end_index = end_idx(ai_move)
                 if game_state.board.is_brazda(end_index) and game_state.current_player == "B":

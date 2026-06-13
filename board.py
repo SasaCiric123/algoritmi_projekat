@@ -81,6 +81,20 @@ class Board:
                 new_index = self.row_col_to_index(new_row, new_col)
                 if new_index is not None and self.state[new_index] is None:
                     moves.append((index, new_index))
+
+                if has_sarac:
+                    ally_row, ally_col = row + dr, col + dc
+                    ally_index = self.row_col_to_index(ally_row, ally_col)
+                    jump_row, jump_col = row + dr * 2, col + dc * 2
+                    jump_index = self.row_col_to_index(jump_row, jump_col)
+                    if (
+                        ally_index is not None
+                        and jump_index is not None
+                        and self.state[ally_index] is not None
+                        and self.get_piece_color(self.state[ally_index]) == my_color
+                        and self.state[jump_index] is None
+                    ):
+                        moves.append((index, jump_index, 'sarac'))
         else:
             for dr, dc in directions:
                 step = 1
@@ -177,6 +191,9 @@ class Board:
                         if victim_index is not None:
                             break
                         if next_index not in oklop_targets:
+                            if has_topuz:
+                                moves.append((index, next_index, next_index, 'topuz'))
+                                break
                             victim_index = next_index
                         else:
                             break

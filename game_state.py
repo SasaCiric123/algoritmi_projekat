@@ -3,6 +3,9 @@ from board import Board
 from zobrist import ZobristHash
 import copy
 
+LOG_TO_CONSOLE = False
+
+
 class GameState:
     def __init__(self):
         self.board = Board()
@@ -33,6 +36,10 @@ class GameState:
         self.zobrist = ZobristHash()
         self.current_hash = self.zobrist.compute_initial_hash(self.board.state, self.current_player)
         self.halfmove_clock = 0
+
+    def log(self, message):
+        if LOG_TO_CONSOLE:
+            print(message)
 
     def check_marko_promotion(self, player):#uslovi za marka
         inv = self.inventory[player]
@@ -69,6 +76,13 @@ class GameState:
         self.halfmove_clock = 0
         return True
 
+    def sync_marko_powers(self):
+        for idx, piece in enumerate(self.board.state):
+            if piece in ("W_M", "B_M"):
+                player = self.board.get_piece_color(piece)
+                self.inventory[player]["sarac"].add(idx)
+                self.inventory[player]["topuz"].add(idx)
+
     def switch_player(self):
         self.in_chain = None
         trenutni = self.current_player
@@ -79,12 +93,12 @@ class GameState:
             self.oklop_trajanje[protivnik] -= 1
             if self.oklop_trajanje[protivnik] == 0:
                 self.oklop_figura[protivnik] = None
-                print(f"Оклоп играча {protivnik} је зарђао!")
+                self.log(f"Оклоп играча {protivnik} је зарђао!")
 
         if self.vino_trajanje[trenutni] > 0:
             self.vino_trajanje[trenutni] -= 1
             if self.vino_trajanje[trenutni] == 0:
-                print(f"Играч {trenutni} се отрезнио, дејство вина је прошло!")
+                self.log(f"Играч {trenutni} се отрезнио, дејство вина је прошло!")
 
         self.current_player = protivnik
 
@@ -96,6 +110,7 @@ class GameState:
     def get_valid_moves(self):
         valid_moves = []
         p = self.current_player
+        self.sync_marko_powers()
         topuz_s = self.inventory[p]["topuz"]
         sarac_s = self.inventory[p]["sarac"]
         oklop_t = self.get_oklop_targets()
@@ -106,7 +121,7 @@ class GameState:
                 if self.vino_trajanje[p] > 0 and self.vino_figura[p] == self.in_chain:
                     return []
 
-                has_topuz_chain = self.in_chain in topuz_s
+                has_topuz_chain = self.in_chain in topuz_s or chain_piece in ("W_M", "B_M")
                 t_owner = self.in_chain if has_topuz_chain else None
                 piece_captures = self.board.get_piece_capture_moves(self.in_chain,
                                                                     topuz_owner = t_owner,
@@ -124,7 +139,7 @@ class GameState:
                 continue
             if self.vino_frozen(self.board.get_piece_color(piece), index):
                 continue
-            has_topuz = index in topuz_s
+            has_topuz = index in topuz_s or piece in ("W_M", "B_M")
             t_owner = index if has_topuz else None
             captures.extend(self.board.get_piece_capture_moves(index,
                                                                    topuz_owner=t_owner,
@@ -171,6 +186,13 @@ class GameState:
         return (self.vino_trajanje[player] > 0 and self.vino_figura[player] == index)
 
     def execute_player_move(self, move_tuple, brazda_square = False):
+        self.sync_marko_powers()
+        move_type = move_tuple[0] #ili capture ili quiet
+        start_idx = move_tuple[1]
+        moving_piece = self.board.state[start_idx]
+        if moving_piece and self.vino_frozen(self.current_player, start_idx):
+            return False
+
         #cuvam kopiju ako bude bio undo
         if self.undo_stack is not None:
             board_copy = self.board.copy_board()
@@ -178,9 +200,6 @@ class GameState:
             self.undo_stack.push((board_copy, self.current_player, state_snapshot))
         if self.redo_stack is not None:
             self.redo_stack.clear()
-        move_type = move_tuple[0] #ili capture ili quiet
-        start_idx = move_tuple[1]
-        moving_piece = self.board.state[start_idx]
         protivnik = "B" if self.current_player == "W" else "W"
         if move_type == "quiet":
             self.halfmove_clock += 1
@@ -241,15 +260,12 @@ class GameState:
         if self.history_tree is not None:
             self.history_tree.add_move(move_tuple, copy.deepcopy(self))
 
-        self.current_hash = self.zobrist.update_hash_move(self.current_hash, move_tuple, self.board,
-                                                          self.current_player, moving_piece)
+        self.current_hash = self.zobrist.compute_initial_hash(self.board.state, self.current_player)
 
     def snapshot_state(self):#snapshot za moci
+        self.sync_marko_powers()
         return{
-            "inventory":{
-                "W":dict(self.inventory["W"]),
-                "B":dict(self.inventory["B"])
-            },
+            "inventory": copy.deepcopy(self.inventory),
             "oklop_trajanje": dict(self.oklop_trajanje),
             "vino_trajanje": dict(self.vino_trajanje),
             "oklop_figura": dict(self.oklop_figura),
@@ -262,10 +278,7 @@ class GameState:
         }
 
     def restore_snapshot(self, snapshot):
-        self.inventory = {
-            "W": dict(snapshot["inventory"]["W"]),
-            "B": dict(snapshot["inventory"]["B"])
-        }
+        self.inventory = copy.deepcopy(snapshot["inventory"])
         self.oklop_trajanje = dict(snapshot["oklop_trajanje"])
         self.vino_trajanje = dict(snapshot["vino_trajanje"])
         self.oklop_figura = dict(snapshot["oklop_figura"])
@@ -279,10 +292,11 @@ class GameState:
         self.carev_drum = Deque()
         for stavka in snapshot["carev_drum"]:
             self.carev_drum.add_last(stavka)
+        self.sync_marko_powers()
 
     def undo(self):
         if self.undo_stack.is_empty():
-            print("Нема потеза за поништавање!")
+            self.log("Нема потеза за поништавање!")
             return False
         current_board_copy = self.board.copy_board()
         current_snapshot = self.snapshot_state()
@@ -291,14 +305,15 @@ class GameState:
         self.board = previous_board
         self.current_player = previous_player
         self.restore_snapshot(previous_snapshot)
+        self.sync_marko_powers()
         if self.history_tree is not None:
             self.history_tree.undo_move()
-        print("Потез успешно поништен (Undo)!")
+        self.log("Потез успешно поништен (Undo)!")
         return True
 
     def redo(self):
         if self.redo_stack.is_empty():
-            print("Нема потеза за унапред!")
+            self.log("Нема потеза за унапред!")
             return False
         current_board_copy = self.board.copy_board()
         current_snapshot = self.snapshot_state()
@@ -307,9 +322,10 @@ class GameState:
         self.board = next_board
         self.current_player = next_player
         self.restore_snapshot(next_snapshot)
+        self.sync_marko_powers()
         if self.history_tree is not None:
             self.history_tree.redo_move()
-        print("Потез успешно враћен унапред (Redo)!")
+        self.log("Потез успешно враћен унапред (Redo)!")
         return True
 
     def cycle_carev_drum(self):
@@ -337,12 +353,12 @@ class GameState:
         if relikvija == "topuz":
             if figura_index is not None:
                 self.inventory[p]["topuz"].add(figura_index)
-            print(f"Играч {p} је добио Топуз!")
+            self.log(f"Играч {p} је добио Топуз!")
 
         elif relikvija == "sarac":
             if figura_index is not None:
                 self.inventory[p]["sarac"].add(figura_index)
-                print(f"Играч {p} је добио Шарца!")
+                self.log(f"Играч {p} је добио Шарца!")
 
         elif relikvija == "oklop":
             if figura_index is not None:
@@ -352,7 +368,7 @@ class GameState:
                 else:
                     self.oklop_trajanje[p] = 1
                 self.oklop_figura[p] = figura_index
-                print(f"Играч {p}: Фигура на {figura_index} је обукла Оклоп (трајање: {self.oklop_trajanje[p]} пот.)!")
+                self.log(f"Играч {p}: Фигура на {figura_index} је обукла Оклоп (трајање: {self.oklop_trajanje[p]} пот.)!")
 
         elif relikvija == "vino":
             protivnik = "B" if p == "W" else "W"
@@ -362,13 +378,13 @@ class GameState:
                 if nearest is not None:
                     nearest_piece = self.board.state[nearest]
                     if nearest_piece and "_M" in nearest_piece:
-                        print(f"Марко Краљевић је имун на Вино!")
+                        self.log(f"Марко Краљевић је имун на Вино!")
                     else:
                         self.vino_trajanje[protivnik] = 2
                         self.vino_figura[protivnik] = nearest
-                        print(f"Бачено рујно вино!")
+                        self.log(f"Бачено рујно вино!")
                 else:
-                    print("Нема противника у близини!")
+                    self.log("Нема противника у близини!")
 
         elif relikvija == "blago":
             if figura_index is not None:
@@ -376,7 +392,7 @@ class GameState:
                 if piece:
                     self.board.promote_to_kraljevic(figura_index)
                     self.halfmove_clock = 0
-                    print(f"Три товара блага!")
+                    self.log(f"Три товара блага!")
                     self.try_marko_upgrade(p, figura_index)
         if relikvija != "blago":
             self.try_marko_upgrade(p, figura_index)
@@ -423,11 +439,11 @@ class GameState:
         return False
 
     def display_status(self):
-        print("--- СТАТУС ИГРЕ ---")
-        print(f"На потезу је: {'Бели (Јунаци)' if self.current_player == 'W' else 'Црни (АИ)'}")
-        print(f"Инвентар Бели: {self.inventory['W']}")
-        print(f"Инвентар Црни: {self.inventory['B']}")
-        print("-------------------")
+        self.log("--- СТАТУС ИГРЕ ---")
+        self.log(f"На потезу је: {'Бели (Јунаци)' if self.current_player == 'W' else 'Црни (АИ)'}")
+        self.log(f"Инвентар Бели: {self.inventory['W']}")
+        self.log(f"Инвентар Црни: {self.inventory['B']}")
+        self.log("-------------------")
 
 
     def __getstate__(self):#stavljam da deep copy ne gleda history tree, undo i redo
