@@ -101,6 +101,7 @@ class GameState:
                 self.log(f"Играч {trenutni} се отрезнио, дејство вина је прошло!")
 
         self.current_player = protivnik
+        self.cycle_carev_drum()
 
     def get_topuz_owner(self):
         if not self.inventory[self.current_player]["topuz"]:
@@ -396,10 +397,6 @@ class GameState:
                     self.try_marko_upgrade(p, figura_index)
         if relikvija != "blago":
             self.try_marko_upgrade(p, figura_index)
-
-        if not self.carev_drum.is_empty():
-            zadnja = self.carev_drum.remove_last()
-            self.carev_drum.add_first(zadnja)
 
         if self.history_tree and self.history_tree.current_node:
             self.history_tree.current_node.game_state_snapshot = copy.deepcopy(self)
