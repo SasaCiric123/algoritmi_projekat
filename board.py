@@ -177,7 +177,7 @@ class Board:
 
                     current_piece = self.state[next_index]
 
-                    if current_piece is None:################
+                    if current_piece is None:
                         if victim_index is not None:
                             if has_topuz:
                                 moves.append((index, victim_index, victim_index, 'topuz'))
@@ -201,7 +201,7 @@ class Board:
         return moves
 
     def make_move(self, start_index, end_index, victim_index= None):
-        piece = self.state[start_index]###############
+        piece = self.state[start_index]
         self.state[start_index] = None
 
         if victim_index is not None:#proverava se zbog topuza
