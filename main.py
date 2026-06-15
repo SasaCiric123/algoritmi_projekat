@@ -13,7 +13,7 @@ BOARD_SIZE = 600
 SQUARE_SIZE = BOARD_SIZE // 8
 
 WIN = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Царев друм: Српске епске даме")
+pygame.display.set_caption("Јуначки мегдан")
 
 CRNA = (0, 0, 0)
 BELA = (255, 255, 255)
