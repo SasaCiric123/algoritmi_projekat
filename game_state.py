@@ -21,7 +21,6 @@ class GameState:
         self.vino_figura = {"W":None, "B":None}
 
         self.undo_stack = Stack()
-        self.redo_stack = Stack()
         self.history_tree = HistoryTree()
         self.game_over = False
         self.winner = None
@@ -199,8 +198,6 @@ class GameState:
             board_copy = self.board.copy_board()
             state_snapshot = self.snapshot_state()
             self.undo_stack.push((board_copy, self.current_player, state_snapshot))
-        if self.redo_stack is not None:
-            self.redo_stack.clear()
         protivnik = "B" if self.current_player == "W" else "W"
         if move_type == "quiet":
             self.halfmove_clock += 1
@@ -299,9 +296,6 @@ class GameState:
         if self.undo_stack.is_empty():
             self.log("Нема потеза за поништавање!")
             return False
-        current_board_copy = self.board.copy_board()
-        current_snapshot = self.snapshot_state()
-        self.redo_stack.push((current_board_copy, self.current_player, current_snapshot))
         previous_board, previous_player, previous_snapshot = self.undo_stack.pop()
         self.board = previous_board
         self.current_player = previous_player
@@ -310,23 +304,6 @@ class GameState:
         if self.history_tree is not None:
             self.history_tree.undo_move()
         self.log("Потез успешно поништен (Undo)!")
-        return True
-
-    def redo(self):
-        if self.redo_stack.is_empty():
-            self.log("Нема потеза за унапред!")
-            return False
-        current_board_copy = self.board.copy_board()
-        current_snapshot = self.snapshot_state()
-        self.undo_stack.push((current_board_copy, self.current_player, current_snapshot))
-        next_board, next_player, next_snapshot = self.redo_stack.pop()
-        self.board = next_board
-        self.current_player = next_player
-        self.restore_snapshot(next_snapshot)
-        self.sync_marko_powers()
-        if self.history_tree is not None:
-            self.history_tree.redo_move()
-        self.log("Потез успешно враћен унапред (Redo)!")
         return True
 
     def cycle_carev_drum(self):
@@ -443,11 +420,10 @@ class GameState:
         self.log("-------------------")
 
 
-    def __getstate__(self):#stavljam da deep copy ne gleda history tree, undo i redo
+    def __getstate__(self):#stavljam da deep copy ne gleda history tree i undo
         state = self.__dict__.copy()
         state["history_tree"] = None
         state["undo_stack"] = None
-        state["redo_stack"] = None
         import copy
         state["inventory"] = copy.deepcopy(self.inventory)
         state["oklop_trajanje"] = dict(self.oklop_trajanje)
@@ -468,5 +444,4 @@ class GameState:
         self.__dict__.update(state)
         self.history_tree = None
         self.undo_stack= None
-        self.redo_stack= None
 

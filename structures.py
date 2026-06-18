@@ -105,14 +105,3 @@ class HistoryTree:
             return True
         return False
 
-    def redo_move(self, child_index = 0):
-        if len(self.current_node.children) == 0:
-            return False
-
-        if child_index is None:
-            child_index = len(self.current_node.children) - 1
-
-        if 0 <= child_index < len(self.current_node.children):
-            self.current_node = self.current_node.children[child_index]
-            return True
-        return False

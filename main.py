@@ -32,8 +32,7 @@ FONT_GL = pygame.font.SysFont('Arial', 22, bold=True)
 FONT_ML = pygame.font.SysFont('Arial', 16)
 FONT_NAZ = pygame.font.SysFont('Times New Roman', 28, bold=True)
 
-UNDO = pygame.Rect(BOARD_SIZE + 15, HEIGHT - 80, 80, 35)
-REDO = pygame.Rect(BOARD_SIZE + 105, HEIGHT - 80, 80, 35)
+UNDO = pygame.Rect(BOARD_SIZE + 15, HEIGHT - 80, 170, 35)
 GORNJA_RECT = pygame.Rect(BOARD_SIZE // 2 - 175, HEIGHT // 2 - 190, 350, 160)
 DONJA_RECT = pygame.Rect(BOARD_SIZE // 2 - 175, HEIGHT // 2 + 10, 350, 160)
 REPLAY_RECT = pygame.Rect(BOARD_SIZE // 2 - 110, HEIGHT // 2 + 50, 220, 40)
@@ -157,9 +156,8 @@ def draw_info(win, game_state):
     win.blit(FONT_ML.render(f"Доња:  {bot.upper() if bot else 'Празно'}", True, BELA), (BOARD_SIZE + 30, 468))
 
     pygame.draw.rect(win, (80, 80, 80), UNDO, border_radius=5)
-    pygame.draw.rect(win, (80, 80, 80), REDO, border_radius=5)
-    win.blit(FONT_ML.render("UNDO", True, BELA), (UNDO.x + 16, UNDO.y + 8))
-    win.blit(FONT_ML.render("REDO", True, BELA), (REDO.x + 16, REDO.y + 8))
+    undo_lbl = FONT_ML.render("UNDO", True, BELA)
+    win.blit(undo_lbl, (UNDO.x + (UNDO.width - undo_lbl.get_width()) // 2, UNDO.y + 8))
 
 
 def draw_game_over(win, winner):
@@ -408,14 +406,6 @@ def main():
                         selected, sel_moves = None, []
                         game_state.game_over = False
                         game_state.winner = None
-                    continue
-
-                if REDO.collidepoint(pos):
-                    if not game_state.redo_stack.is_empty():
-                        game_state.redo()
-                        if game_state.current_player == "B" and not game_state.redo_stack.is_empty():
-                            game_state.redo()
-                        selected, sel_moves = None, []
                     continue
 
                 row, col = mouse_to_rc(pos)
